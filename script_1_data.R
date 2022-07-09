@@ -318,17 +318,7 @@ finale$modalitetravcl <- ifelse(finale$modalitetrav ==2, 1,
                                 ifelse(finale$modalitetrav ==1 | finale$modalitetrav ==3, 2, 
                                        ifelse(finale$modalitetrav ==4 | finale$modalitetrav ==5 | finale$modalitetrav ==6 | finale$modalitetrav ==7, 3, 4)))
 
-VAR2 <- c("sexe","enceinte","trimestre","agecl","marital","mari","animal","travail",
-          "categorie","profdesante","niveau","debuthospit","ALD","psy","surf",
-          "addictopsy.SQ001.","addictopsy.SQ002.","addictopsy.SQ003.",
-          "atcdconfinement","accordconf","information","infoofficielles","cov19",
-          "accesprotection","accouchement","dept","acconf","info","infooff",
-          "produits","entourage","enfant","gardeenfant","confinementfamille",
-          "stresstrav","stressperso","stressgeneral",
-          "contacts.1.","contacts.2.","contacts.3.","contacts.4.","exterieurcl",
-          "lieudevie","entouragecl","modalitetravcl","chargetravail","inquiettravail",
-          "finces","repercfince","contactsconfinement.1.","contactsconfinement.2.",
-          "contactsconfinement.3.","contactsconfinement.4.")
+
 
 stop("Thanks, you'll take over from here!")
 a=3
