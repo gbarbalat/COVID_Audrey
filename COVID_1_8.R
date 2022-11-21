@@ -1,140 +1,105 @@
 # read and clean COVID files
-
-#example of an analysis using SuperLearner and SHAP
 library(dplyr)
-library(SuperLearner)
+library(caret)
+
+cv_holdout="cv"
+
+preProcess_missing="medianImpute"
+preProcess_missing_factor="medianImpute"
+preProcess=c("center","scale",preProcess_missing,"corr","nzv","conditionalX")
+
+#preProcess_rd="pca"
+Nfolds=5
+summaryFunction = defaultSummary #twoClassSummary #CustomprSummary
+metric="Rsquared"
+algorithm = "ranger"
+grid_search = "random"
+tuneGrid=NULL
+tuneLength=10
+set.seed(123)
 
 
-VAR2 <- c("sexe","agecl","marital","mari","animal","travail",
-          "categorie","niveau","debuthospit","ALD","psy","surf",
-          #"addictopsy.SQ001.","addictopsy.SQ002.","addictopsy.SQ003.",
-          #"accordconf","information","infoofficielles","cov19",
-          #"accesprotection","accouchement","acconf","info","infooff",
-          "produits",
-          #"entourage","enfant","gardeenfant","confinementfamille",
+
+VAR2 <- c("semaine","sexe","enceinte","trimestre","agecl","marital","mari","animal","travail",
+          "categorie","profdesante","niveau","debuthospit","ALD","psy","surf",
+          "addictopsy.SQ001.","addictopsy.SQ002.","addictopsy.SQ003.",
+          "atcdconfinement","accordconf","information","infoofficielles","cov19",
+          "accesprotection","accouchement","dept","acconf","info","infooff",
+          "produits","entourage","enfant","gardeenfant","confinementfamille",
           "stresstrav","stressperso","stressgeneral",
-          #"contacts.1.","contacts.2.","contacts.3.","contacts.4.","exterieurcl",
-          "lieudevie","modalitetravcl","chargetravail",
-          #"entouragecl","inquiettravail",
-          "WEMWBS_TOT","semaine","dept")
-          # "finces","repercfince","contactsconfinement.1.","contactsconfinement.2.")#,
-          # "contactsconfinement.3.","contactsconfinement.4.")#,
-mydf=finale[complete.cases(finale[,VAR2]),VAR2]
-Y=mydf$WEMWBS_TOT
-X=select(mydf,-c(WEMWBS_TOT,dept))
-X <- X %>%
-  mutate(across(c(semaine),~as.factor(.x)))
+          "contacts.1.","contacts.2.","contacts.3.","contacts.4.","exterieurcl",
+          "lieudevie","entouragecl","modalitetravcl","chargetravail","inquiettravail",
+          "finances","repercfinance","contactsconfinement.1.","contactsconfinement.2.",
+          "contactsconfinement.3.","contactsconfinement.4.","WEMWBS_TOT")
+#mydf=finale[complete.cases(finale[,VAR2]),VAR2]
+mydf=finale[,VAR2]
+# Y=mydf$WEMWBS_TOT
+# X=select(mydf,-c(WEMWBS_TOT))
 
-SL.library= list(#list or c, list for 
-  "SL.randomForest", #"SL.ranger",#"SL.rf_100", #1000 trees; ranger (500 trees) does not work ...
-  #"SL.xgboost",
-  # "SL.step.forward",
-  #"SL.step_IA_glmnet",#"
-  #"SL.step_IA_randomForest",#"
-  "SL.glmnet", #"SL.glmnet_ridge",#"SL.hal9001",
-  "SL.earth"#,
-  #"SL.mean"
-)#
-control=list(saveFitLibrary = TRUE, saveCVFitLibrary = FALSE, trimLogit = 0.001)
-
-cvControl = list(V = 2L, stratifyCV=FALSE, shuffle=TRUE)
-innercvControl = list(list(V = 2L, stratifyCV=FALSE, shuffle=TRUE))
-
-method = "method.NNLS" # "method.AUC" "method.NNloglik" "method.NNLS"
-
-cv_sl_all = CV.SuperLearner(Y = Y, X=X,
-                            family = gaussian(),
-                            control = control,
-                            cvControl = cvControl,
-                            innerCvControl=innercvControl,
-                            method=method,
-                            SL.library = SL.library
+fitControl <- caret::trainControl(method = "repeatedcv",#boot #cv #oob repeated_cv
+                                  number = 5,
+                                  repeats=1,
+                                  allowParallel = TRUE,
+                                  index=NULL,
+                                  classProbs = FALSE,
+                                  summaryFunction = summaryFunction, #CustomprSummary,
+                                  search = grid_search,#random or grid
+                                  preProcOptions = list(thresh = 0.95, #cumulative percent of variance to be retained by PCA
+                                                        ICAcomp = 3, 
+                                                        k = 5, knnSummary=mean,
+                                                        freqCut = 95/5, #95% of most common compared to 2nd most common
+                                                        uniqueCut =10,
+                                                        cutoff = 0.9,#for correlation cutoff
+                                                        na.remove = FALSE
+                                  ),
+                                  sampling = NULL,
+                                  savePredictions="final"
 )
 
-
-##############################
-
-  anal_shap<-function(SL_data,covars) { 
-    
-    source("my_wrappers.R")
-    
-    
-    ##########
-    ####prepare matrix
-    #########
-    SL_data=SL_data[complete.cases(SL_data[,c(covars,"WEMWBS_TOT")]),c(covars,"WEMWBS_TOT")]
-    
-    
-    Y<-SL_data$WEMWBS_TOT
-    
-    X=select(SL_data,all_of(covars)) %>%
-      mutate(across(everything(),~as.factor(.x))) 
-    
-    ###########
-    #you have to re-estimate a model with a smaller number of features
-    ###########
-    big_model = CV.SuperLearner(Y = Y, X=X,
-                                family = gaussian(),
-                                control = control,
-                                cvControl = cvControl,
-                                innerCvControl=innercvControl,
-                                method=method,
-                                SL.library = SL.library
+#  I leave out FoldIndex[[kFold]]
+# for (kFold in 1:length(FoldIndex)) {
+#   
+#   if (cv_holdout=="cv") {
+    #replace train function by rfe
+    #caret::train or CAST::ffs
+    hyper_params <- caret::train(#y=as.factor(df[-FoldIndex[[kFold]],"PSR"]),#y or response
+      #x=dplyr::select(df[-FoldIndex[[kFold]],],#x or predictors
+      #-PSR),
+      WEMWBS_TOT ~ .,
+      data=mydf,#df[-FoldIndex[[kFold]],],#data=df,
+      method = algorithm,
+      preProcess=preProcess,
+      tuneGrid = tuneGrid,
+      tuneLength=tuneLength,
+      trControl = fitControl,
+      metric = metric,
+      na.action=na.pass#na.pass na.omit na.exclude na.fail
     )
-    ###########
     
-    
-    
-    all_preds_matrix=matrix(NA,nrow=nrow(X),ncol=ncol(X)+1)
-    colnames(all_preds_matrix)=c("glob",covars)
-    
-    ###########
-    #fold by fold
-    N_fold <- length(big_model$AllSL)
-    for (i in 1:N_fold) {
-      
-      test=as.integer(rownames(big_model$AllSL[[i]]$SL.predict))
-      x_train <- SL_data %>% 
-        select(all_of(covars)) %>%
-        slice(-test) %>%
-        mutate(across(everything(),~as.factor(.x)))  #%>%
-        #as.matrix()#as.matrix(as.data.frame(SL_data[-test, covars]))
-      y_train <- Y[-test]#factor(as.data.frame(SL_data)[train, outcome])
-      x_test <- SL_data %>% 
-        select(all_of(covars)) %>%
-        slice(test) %>%
-        mutate(across(everything(),~as.factor(.x)))  #%>%
-       #as.matrix()
-      
-      model = big_model$AllSL[[i]]
-      
-      
-      explainer <- shapr(x=x_train, model=model,n_combinations = NULL)#NULL or 10000
-      
-      # Specifying the phi_0, i.e. the expected prediction without any features
-      p <- mean(y_train)
-      
-      # Computing the actual Shapley values with kernelSHAP accounting for feature dependence using
-      # the empirical (conditional) distribution approach with bandwidth parameter sigma = 0.1 (default)
-      explanation <- explain(
-        x_test,
-        approach = "ctree",# empirical, gaussian, copula, ctree
-        explainer = explainer,
-        prediction_zero = p
-      )
-      
-      all_preds_matrix[test,] <- cbind(explanation$p,
-                                       as.matrix(explanation$dt)[,-1])
-    }#for N fold loop
-    
-    return(list(all_preds_matrix,big_model))
-    
-  }
-
-#potential covariates of interest
-covars <- c("sexe","agecl","marital","mari","animal","travail","semaine")
-mydf=finale[complete.cases(finale[,c(covars,"WEMWBS_TOT")]),c(covars,"WEMWBS_TOT")]
-mydf=select(mydf,c(all_of(covars),"WEMWBS_TOT") ) %>%
-  mutate(across(c(semaine),~as.factor(.x)))
-
-explanation_matrix<-anal_shap(SL_data=mydf,  covars = covars);print("done")
+    # yhat.algo=predict.train(hyper_params #best_model
+    #                         ,newdata=dplyr::select(df[FoldIndex[[kFold]],],-PSR)
+    #                         ,"prob")#[,-1] if rfe
+    # ypreds=predict.train(hyper_params,
+    #                      newdata=dplyr::select(df[FoldIndex[[kFold]],],-PSR)
+    # )
+    # 
+    # y_hat_algo[FoldIndex[[kFold]],]  <- as.matrix(yhat.algo)
+    # y_class_algo[FoldIndex[[kFold]]]  <- ypreds
+    # 
+    # y_true[FoldIndex[[kFold]]] <- as.factor(as.matrix(df[FoldIndex[[kFold]],"PSR"]))
+    # 
+    # ### predict on training data
+    # yhat.algo_OF=predict.train(hyper_params#best_model_lasso[[kFold]]
+    #                            ,newdata=dplyr::select(df[-FoldIndex[[kFold]],],-PSR)
+    #                            ,type = "prob")#[,-1] if rfe
+    # ypreds_OF=predict.train(hyper_params
+    #                         ,newdata=dplyr::select(df[-FoldIndex[[kFold]],],-PSR)
+    # )#[,1] if rfe
+    # y_true_OF <- as.factor(as.matrix(df[-FoldIndex[[kFold]],"PSR"]))
+    # 
+    # y_hat_algo_allF=c(y_hat_algo_allF,list(yhat.algo_OF))
+    # y_class_algo_allF=c(y_class_algo_allF,list(ypreds_OF))
+    # y_true_allF=c(y_true_allF,list(y_true_OF))
+    # ###
+    # 
+    # hyper_params_all=c(hyper_params_all,list(hyper_params))
