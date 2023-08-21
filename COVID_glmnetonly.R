@@ -1,3 +1,9 @@
+# This is the master file 
+#it reads the cleaned csv file 
+#it adds a new cleaning step
+#it preprocess the data using caret preprocessing steps
+#it processes the data using glmnet
+
 # read and clean COVID files
 close.screen(all=TRUE)
 rm(list=ls())
